@@ -194,8 +194,8 @@ std::string idaRec( CNode curNode, int curDepth, int maxDepth )
 
 std::string IdaStar( const TBoard& startPos ) 
 {
-	const int MAX_DEPTH = 35;
-    std::string res;
+	const int MAX_DEPTH = 36;
+	std::string res;
 	CNode startNode;
 	startNode.FirstInit(startPos);
     for( int i = 0; i <= MAX_DEPTH; i++ ) {
@@ -207,7 +207,7 @@ std::string IdaStar( const TBoard& startPos )
     return NO_SOLUTIONS;
 }
 
-//----------------------A star algorithm---------------------------
+//----------------------A* algorithm---------------------------
 std::string AStar( const TBoard& startPos ) 
 {
 	int dist;
@@ -249,6 +249,10 @@ std::string AStar( const TBoard& startPos )
 			if( pqueue.size() > maxFrontier ) {
 				maxFrontier = pqueue.size();
 			}
+		}
+		// freeze protection
+		if( maxFrontier > 1e5 ) {
+			break;
 		}
 	}
 	return NO_SOLUTIONS;
@@ -348,11 +352,14 @@ void OutAlgorithmsStatistics()
 
 int main()
 {
+	// automatic randomization
+	srand(time(0));
+
 	CalcDistances();
 	InitAlgorithms();
 	RunBenchmark();
 	OutAlgorithmsStatistics();
 
 	system("PAUSE");
-    return 0;
+	return 0;
 }
