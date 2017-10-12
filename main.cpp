@@ -9,13 +9,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <array>
-#include <ctime>
 #include <chrono>
+#include <climits>
 
 
 //using namespace std;
 
-#define NUMBER_OF_TESTS 15
+#define NUMBER_OF_TESTS 10
 
 //store playing board in a linear array;
 typedef std::array<short int, 16> TBoard;
@@ -27,15 +27,18 @@ const TBoard SOLUTION = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0 }
 struct CAlgorithm {
 	std::string(*SolverAlgorithm)(const  TBoard &startPos);
 	std::string Name;
-	// Доля ненайденных решений
-	int FailureRate;
-	// Среднее время работыы
+	// share of not founds solutions
+	int FailureShare;
+	// mean work time in milliseconds
 	double MeanTime;
-	// На сколько шагов в среднем найденное решение хуже наилучшего
+	// mean distance between best solution and solution of this method
 	double MeanLag;
 
-	void InitFileds() {
-		MeanLag = MeanTime = FailureRate = 0;
+	CAlgorithm( char *name, std::string(*solverAlgorithm)(const  TBoard &startPos) )
+	{
+		Name = name;
+	 	SolverAlgorithm = solverAlgorithm;
+		MeanLag = MeanTime = FailureShare = 0;
 	}
 };
 
@@ -62,7 +65,7 @@ void CNode::FindGapPos()
 	throw 1;
 }
 
-void CNode::FirstInit(const TBoard &startPos)
+void CNode::FirstInit( const TBoard &startPos )
 {
 	Board = startPos;
 	FindGapPos();
@@ -77,8 +80,8 @@ int Distances[16][16];
 
 void CalcDistances()
 {
-    for (int truePazzle = 1; truePazzle < 16; truePazzle++){
-        for (int pos = 0; pos < 16; pos++){
+    for( int truePazzle = 1; truePazzle < 16; truePazzle++ ) {
+        for( int pos = 0; pos < 16; pos++ ){
             int i1, j1, i2, j2;
             i1 = (truePazzle-1) / 4;
             j1 = (truePazzle-1) % 4;
@@ -94,8 +97,9 @@ void CalcDistances()
 int GetManhattanDistance( const TBoard& board )
 {
     int res = 0;
-    for( int i=0; i < 16; i++ )
-        res += Distances[i][board[i]];
+	for( int i = 0; i < 16; i++ ) {
+		res += Distances[i][board[i]];
+	}
     return res;
 }
 
@@ -172,8 +176,9 @@ std::string idaRec( CNode curNode, int curDepth, int maxDepth )
         return solve;
     }
 
-    if( curDepth + dist > maxDepth )
-        return solve;
+	if( curDepth + dist > maxDepth ) {
+		return solve;
+	}
 
     std::vector<CNode> nextNodes;
     GetSuccessors(curNode, nextNodes);
@@ -187,29 +192,31 @@ std::string idaRec( CNode curNode, int curDepth, int maxDepth )
 }
 
 
-std::string IdaStar(const TBoard& startPos ) 
+std::string IdaStar( const TBoard& startPos ) 
 {
-	const int MAX_DEPTH = 37;
+	const int MAX_DEPTH = 35;
     std::string res;
 	CNode startNode;
 	startNode.FirstInit(startPos);
     for( int i = 0; i <= MAX_DEPTH; i++ ) {
         res = idaRec(startNode, 0, i);
-        if (res != NO_SOLUTIONS)
-            return res;
+		if( res != NO_SOLUTIONS ) {
+			return res;
+		}
     }
     return NO_SOLUTIONS;
 }
 
 //----------------------A star algorithm---------------------------
-std::string AStar( const TBoard& startPos ) {
+std::string AStar( const TBoard& startPos ) 
+{
 	int dist;
 	int numVisited = 0;
 	int maxFrontier = 0;
 	CNode startNode;
 	startNode.FirstInit(startPos);
 
-	double magicConstant = 2.5; // :-)
+	double magicConstant = 1; // warning: value more than 1 will make unacceptable estimation function, set it only when debug
 
 	std::multimap<int, CNode> pqueue; //list for next nodes to expand
 	dist = GetManhattanDistance(startPos);
@@ -232,12 +239,14 @@ std::string AStar( const TBoard& startPos ) {
 		std::vector<CNode> nextNodes;
 		nextNodes.clear();
 		GetSuccessors(curNode, nextNodes);
-		for (int i = 0, maxi = nextNodes.size(); i < maxi; i++) {
-			if( visited.find(nextNodes[i].Board) != visited.end() ) continue;
+		for( int i = 0, maxi = nextNodes.size(); i < maxi; i++ ) {
+			if( visited.find(nextNodes[i].Board) != visited.end() ) {
+				continue;
+			}
 			dist = GetManhattanDistance(nextNodes[i].Board);
 			int cost = int(dist * magicConstant) + int(nextNodes[i].Path.length());
 			pqueue.insert(std::pair<int, CNode>(cost, nextNodes[i]));
-			if (pqueue.size() > maxFrontier) {
+			if( pqueue.size() > maxFrontier ) {
 				maxFrontier = pqueue.size();
 			}
 		}
@@ -248,22 +257,22 @@ std::string AStar( const TBoard& startPos ) {
 TBoard GenerateStartPos() 
 {
 	// generate new random start position
-	//this function have to generate only correct start positions (use func IsSolveExist( const TBoard& startPos ) )
+	// this function have to generate only correct start positions (use func IsSolveExist( const TBoard& startPos ) )
 	TBoard res;
 	bool ok = false;
-	while (!ok) {
+	while( !ok ) {
 		std::array<bool, 16> was;
-		for (int i = 0; i < 16; i++) {
+		for( int i = 0; i < 16; i++ ) {
 			was[i] = false;
 		}
 		int k;
-		for (int i = 0; i < 16; i++) {
+		for( int i = 0; i < 16; i++ ) {
 			int k;
 			while( was[k = rand() % 16] );
 			was[k] = true;
 			res[i] = k;
 		}
-		if (IsSolveExist(res)) {
+		if( IsSolveExist(res) ) {
 			ok = true;
 		}
 	}
@@ -276,60 +285,74 @@ TBoard GenerateStartPos()
 
 void InitAlgorithms()
 {
-	CAlgorithm alg1;
-	alg1.Name = "IDA*";
-	alg1.SolverAlgorithm = &IdaStar;
-	alg1.InitFileds();
+	CAlgorithm alg1("IDA*", &IdaStar);
 	Algorithms.push_back(alg1);
 
-	CAlgorithm alg2;
-	alg2.Name = "A*";
-	alg2.SolverAlgorithm = &AStar;
-	alg2.InitFileds();
+	CAlgorithm alg2("A*", &AStar);
 	Algorithms.push_back(alg2);
 }
 
-void OutAlgorithmsStatistics()
+void RunBenchmark() 
 {
-	for (auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++) {
-		std::cout << "Name: " << (*pAlg).Name << std::endl;
-		std::cout << "Mean Time: " << (*pAlg).MeanTime << " ms" << std::endl;
-		std::cout << "Failures Rate: " << (*pAlg).FailureRate << std::endl;
-		std::cout << "---------------------------------------------" << std::endl;
-	}
-}
-
-
-int main(){
-	CalcDistances();
-	InitAlgorithms();
-
 	for( int testNumber = 0; testNumber < NUMBER_OF_TESTS; testNumber++ ) {
 		TBoard startPos;
 		std::string path;
 		startPos = GenerateStartPos();
-		for (auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++) {
+		int minPathLen = INT_MAX;
+		std::vector<std::string> paths;
+		paths.clear();
+		for( auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++ ) {
 			std::chrono::high_resolution_clock::time_point startTime, finTime;
 			startTime = std::chrono::high_resolution_clock::now();
-			path = (*pAlg).SolverAlgorithm(startPos);
+			path = pAlg->SolverAlgorithm(startPos);
 			finTime = std::chrono::high_resolution_clock::now();
 
-			(*pAlg).MeanTime += (std::chrono::duration_cast<std::chrono::nanoseconds> (finTime - startTime)).count();
+			pAlg->MeanTime += (std::chrono::duration_cast<std::chrono::nanoseconds> (finTime - startTime)).count();
+
 			//std::cout << path << std::endl;
-			if (path == NO_SOLUTIONS) {
-				(*pAlg).FailureRate += 1;
+			paths.push_back(path);
+			if( path == NO_SOLUTIONS ) {
+				pAlg->FailureShare += 1;
+			}
+			else if( minPathLen > path.length() ) {
+				minPathLen = path.length();
+			}
+		}
+		for( int i = 0; i < Algorithms.size(); i++ ) {
+			if( paths[i] != NO_SOLUTIONS) {
+				Algorithms[i].MeanLag += paths[i].length() - minPathLen;
 			}
 		}
 	}
 	for (auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++) {
-		// calc Mean and convert nanoseconds in milliseconds
-		(*pAlg).MeanTime /= NUMBER_OF_TESTS * 1e6;
-		(*pAlg).FailureRate /= NUMBER_OF_TESTS;
+		// calc mean and convert nanoseconds in milliseconds
+		pAlg->MeanTime /= NUMBER_OF_TESTS * 1e6;
+		if( pAlg->FailureShare < NUMBER_OF_TESTS ) {
+			pAlg->MeanLag /= (NUMBER_OF_TESTS - pAlg->FailureShare);
+		}
+		pAlg->FailureShare /= NUMBER_OF_TESTS;
 	}
+}
+
+void OutAlgorithmsStatistics()
+{
+	for( auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++ ) {
+		std::cout << "---------------------------------------------" << std::endl;
+		std::cout << "Name: " << pAlg->Name << std::endl;
+		std::cout << "Mean Time: " << pAlg->MeanTime << " ms" << std::endl;
+		std::cout << "Failures Rate: " << pAlg->FailureShare << std::endl;
+		std::cout << "Mean distance to best solve: " << pAlg->MeanLag << std::endl;
+	}
+}
+
+
+int main()
+{
+	CalcDistances();
+	InitAlgorithms();
+	RunBenchmark();
 	OutAlgorithmsStatistics();
-
-
 
 	system("PAUSE");
     return 0;
-};
+}
