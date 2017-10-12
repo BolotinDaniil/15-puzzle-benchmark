@@ -2,6 +2,7 @@
 
 # Visual Studio project files
 *vcxproj*
+*.sln
 
 # Build results
 [Dd]ebug/
