@@ -74,8 +74,6 @@ void CNode::FirstInit( const TBoard &startPos )
 
 #define NO_SOLUTIONS "No solutions"
 
-TBoard start_pos;
-
 int Distances[16][16];
 
 void CalcDistances()
@@ -154,41 +152,39 @@ void GetSuccessors( const CNode& curPos, std::vector<CNode>& successors )
     }
 }
 
-bool have_solution;
-
-//----------------------IDA* Algorithm-----------------
+//----------------------IDA* algorithm-----------------
 
 std::string idaRec( CNode curNode, int curDepth, int maxDepth )
 {
-    static bool haveSolution;
-    static std::string solve;
+	static bool haveSolution;
+	static std::string solve;
 
-    if( curDepth == 0 ) {
-        haveSolution = false;
-        solve = NO_SOLUTIONS;
-    }
+	if( curDepth == 0 ) {
+		haveSolution = false;
+		solve = NO_SOLUTIONS;
+	}
 
-    int dist = GetManhattanDistance(curNode.Board);
+	int dist = GetManhattanDistance(curNode.Board);
 
-    if( dist == 0 ) {
-        haveSolution = true;
-        solve = curNode.Path;
-        return solve;
-    }
+	if( dist == 0 ) {
+		haveSolution = true;
+		solve = curNode.Path;
+		return solve;
+	}
 
 	if( curDepth + dist > maxDepth ) {
 		return solve;
 	}
 
-    std::vector<CNode> nextNodes;
-    GetSuccessors(curNode, nextNodes);
-    for( int i=0, maxi = nextNodes.size(); i < maxi && !haveSolution; i++ ) {
-        idaRec(nextNodes[i], curDepth + 1, maxDepth);
-    }
+	std::vector<CNode> nextNodes;
+	GetSuccessors(curNode, nextNodes);
+	for( int i=0, maxi = nextNodes.size(); i < maxi && !haveSolution; i++ ) {
+		idaRec(nextNodes[i], curDepth + 1, maxDepth);
+	}
 
-    nextNodes.clear();
+	nextNodes.clear();
 
-    return solve;
+	return solve;
 }
 
 
@@ -198,13 +194,13 @@ std::string IdaStar( const TBoard& startPos )
 	std::string res;
 	CNode startNode;
 	startNode.FirstInit(startPos);
-    for( int i = 0; i <= MAX_DEPTH; i++ ) {
-        res = idaRec(startNode, 0, i);
+	for( int i = 0; i <= MAX_DEPTH; i++ ) {
+		res = idaRec(startNode, 0, i);
 		if( res != NO_SOLUTIONS ) {
 			return res;
 		}
-    }
-    return NO_SOLUTIONS;
+	}
+	return NO_SOLUTIONS;
 }
 
 //----------------------A* algorithm---------------------------
@@ -226,8 +222,8 @@ std::string AStar( const TBoard& startPos )
 		CNode curNode = pqueue.begin()->second;
 		pqueue.erase(pqueue.begin());
 		numVisited += 1;
-		//        if (num_visited % 1000000 == 0)
-		//            cout << num_visited <<" : " << pqueue.size()<< endl;
+		//        if (numVisited % 1000000 == 0)
+		//            std::cout << numVisited <<" : " << pqueue.size()<< std::endl;
 		visited.insert(curNode.Board);
 
 		if( curNode.Board == SOLUTION ) {
@@ -348,7 +344,6 @@ void OutAlgorithmsStatistics()
 		std::cout << "Mean distance to best solve: " << pAlg->MeanLag << std::endl;
 	}
 }
-
 
 int main()
 {
