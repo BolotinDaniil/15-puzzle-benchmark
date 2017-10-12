@@ -9,26 +9,37 @@
 #include <cstdlib>
 #include <cstring>
 #include <array>
+#include <ctime>
+#include <chrono>
+
 
 //using namespace std;
 
-#define NUMBER_OF_TESTS 1
+#define NUMBER_OF_TESTS 15
 
+//store playing board in a linear array;
 typedef std::array<short int, 16> TBoard;
 
 const TBoard SOLUTION = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0 };
 
+
+// struct for description and statictics of using algorithms
 struct CAlgorithm {
-	std::string(*Method)(const  TBoard &startPos);
+	std::string(*SolverAlgorithm)(const  TBoard &startPos);
 	std::string Name;
-	// Процент ненайденных решений
-	double FailureRate;
+	// Доля ненайденных решений
+	int FailureRate;
 	// Среднее время работыы
 	double MeanTime;
 	// На сколько шагов в среднем найденное решение хуже наилучшего
-	double MeaтLag;
+	double MeanLag;
+
+	void InitFileds() {
+		MeanLag = MeanTime = FailureRate = 0;
+	}
 };
 
+// Add here you algorithm in InitAlgorithms function
 std::vector<CAlgorithm> Algorithms;
 
 struct CNode{
@@ -100,7 +111,7 @@ bool IsSolveExist( const TBoard& startPos )
 		if( startPos[i] == 0 )
 			inv += 1 + i / 4;
 	if( inv % 2 ) {
-		std::cout << "Solution not exist!!!";
+		//std::cout << "Solution not exist!!!";
 	}
 	return (inv % 2 == 0);
 }
@@ -178,7 +189,7 @@ std::string idaRec( CNode curNode, int curDepth, int maxDepth )
 
 std::string IdaStar(const TBoard& startPos ) 
 {
-	const int MAX_DEPTH = 30;
+	const int MAX_DEPTH = 37;
     std::string res;
 	CNode startNode;
 	startNode.FirstInit(startPos);
@@ -191,13 +202,74 @@ std::string IdaStar(const TBoard& startPos )
 }
 
 //----------------------A star algorithm---------------------------
-// he will be here:)
+std::string AStar( const TBoard& startPos ) {
+	int dist;
+	int numVisited = 0;
+	int maxFrontier = 0;
+	CNode startNode;
+	startNode.FirstInit(startPos);
+
+	double magicConstant = 2.5; // :-)
+
+	std::multimap<int, CNode> pqueue; //list for next nodes to expand
+	dist = GetManhattanDistance(startPos);
+	pqueue.insert(std::pair <int, CNode>(int(magicConstant * dist), startNode));
+	std::set<TBoard> visited;
+	while( !pqueue.empty() ) {
+		CNode curNode = pqueue.begin()->second;
+		pqueue.erase(pqueue.begin());
+		numVisited += 1;
+		//        if (num_visited % 1000000 == 0)
+		//            cout << num_visited <<" : " << pqueue.size()<< endl;
+		visited.insert(curNode.Board);
+
+		if( curNode.Board == SOLUTION ) {
+			//std::cout << "Visited: " << numVisited << std::endl;
+			//std::cout << "Max Frontier: " << maxFrontier << std::endl;
+			return curNode.Path;
+		}
+
+		std::vector<CNode> nextNodes;
+		nextNodes.clear();
+		GetSuccessors(curNode, nextNodes);
+		for (int i = 0, maxi = nextNodes.size(); i < maxi; i++) {
+			if( visited.find(nextNodes[i].Board) != visited.end() ) continue;
+			dist = GetManhattanDistance(nextNodes[i].Board);
+			int cost = int(dist * magicConstant) + int(nextNodes[i].Path.length());
+			pqueue.insert(std::pair<int, CNode>(cost, nextNodes[i]));
+			if (pqueue.size() > maxFrontier) {
+				maxFrontier = pqueue.size();
+			}
+		}
+	}
+	return NO_SOLUTIONS;
+}
 
 TBoard GenerateStartPos() 
 {
+	// generate new random start position
+	//this function have to generate only correct start positions (use func IsSolveExist( const TBoard& startPos ) )
 	TBoard res;
+	bool ok = false;
+	while (!ok) {
+		std::array<bool, 16> was;
+		for (int i = 0; i < 16; i++) {
+			was[i] = false;
+		}
+		int k;
+		for (int i = 0; i < 16; i++) {
+			int k;
+			while( was[k = rand() % 16] );
+			was[k] = true;
+			res[i] = k;
+		}
+		if (IsSolveExist(res)) {
+			ok = true;
+		}
+	}
+
 	//res = { 1, 2, 3, 4 , 5, 6, 7, 8, 9, 10, 15, 11, 13, 14, 0, 12 };
-	res = {00, 01, 04, 8, 05, 15, 02, 03, 9, 13, 07, 12, 11, 10, 06, 14};
+	//res = {00, 01, 04, 8, 05, 15, 02, 03, 9, 13, 07, 12, 11, 10, 06, 14};
 	return res;
 }
 
@@ -206,9 +278,25 @@ void InitAlgorithms()
 {
 	CAlgorithm alg1;
 	alg1.Name = "IDA*";
-	alg1.Method = &IdaStar;
-
+	alg1.SolverAlgorithm = &IdaStar;
+	alg1.InitFileds();
 	Algorithms.push_back(alg1);
+
+	CAlgorithm alg2;
+	alg2.Name = "A*";
+	alg2.SolverAlgorithm = &AStar;
+	alg2.InitFileds();
+	Algorithms.push_back(alg2);
+}
+
+void OutAlgorithmsStatistics()
+{
+	for (auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++) {
+		std::cout << "Name: " << (*pAlg).Name << std::endl;
+		std::cout << "Mean Time: " << (*pAlg).MeanTime << " ms" << std::endl;
+		std::cout << "Failures Rate: " << (*pAlg).FailureRate << std::endl;
+		std::cout << "---------------------------------------------" << std::endl;
+	}
 }
 
 
@@ -221,10 +309,27 @@ int main(){
 		std::string path;
 		startPos = GenerateStartPos();
 		for (auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++) {
-			path = (*pAlg).Method(startPos);
-			std::cout << path << std::endl;
+			std::chrono::high_resolution_clock::time_point startTime, finTime;
+			startTime = std::chrono::high_resolution_clock::now();
+			path = (*pAlg).SolverAlgorithm(startPos);
+			finTime = std::chrono::high_resolution_clock::now();
+
+			(*pAlg).MeanTime += (std::chrono::duration_cast<std::chrono::nanoseconds> (finTime - startTime)).count();
+			//std::cout << path << std::endl;
+			if (path == NO_SOLUTIONS) {
+				(*pAlg).FailureRate += 1;
+			}
 		}
 	}
+	for (auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++) {
+		// calc Mean and convert nanoseconds in milliseconds
+		(*pAlg).MeanTime /= NUMBER_OF_TESTS * 1e6;
+		(*pAlg).FailureRate /= NUMBER_OF_TESTS;
+	}
+	OutAlgorithmsStatistics();
+
+
+
 	system("PAUSE");
     return 0;
 };
