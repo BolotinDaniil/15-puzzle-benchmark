@@ -348,7 +348,9 @@ void OutAlgorithmsStatistics()
 int main()
 {
 	// automatic randomization
-	srand(time(0));
+	// srand(time(0));
+	// Results should be reproducible
+	srand(42);
 
 	CalcDistances();
 	InitAlgorithms();
