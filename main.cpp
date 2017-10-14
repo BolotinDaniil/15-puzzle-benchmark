@@ -11,6 +11,9 @@
 #include <array>
 #include <chrono>
 #include <climits>
+#include <functional>
+#include <algorithm>
+#include <utility>
 
 
 //using namespace std;
@@ -28,7 +31,7 @@ struct CAlgorithm {
 	std::string(*SolverAlgorithm)(const  TBoard &startPos);
 	std::string Name;
 	// share of not founds solutions
-	int FailureShare;
+	double FailureShare;
 	// mean work time in milliseconds
 	double MeanTime;
 	// mean distance between best solution and solution of this method
@@ -254,6 +257,82 @@ std::string AStar( const TBoard& startPos )
 	return NO_SOLUTIONS;
 }
 
+//----------------------Beam search algorithm START ---------------------------
+
+std::vector<CNode> getNewFrontFromPossibleFront( std::vector<CNode>& possibleFrontNodes, const int frontCapacity )
+{
+	std::vector<std::pair<int, int> > possibleFrontDistances;
+	std::vector<CNode> newFront;
+	for (int possibleFrontIndex = 0; possibleFrontIndex < possibleFrontNodes.size(); ++possibleFrontIndex) {
+		possibleFrontDistances.emplace_back(GetManhattanDistance(possibleFrontNodes[possibleFrontIndex].Board), possibleFrontIndex);
+	}
+
+	std::sort(possibleFrontDistances.begin(), possibleFrontDistances.end());
+
+	for (int possibleFrontIndex = 0; possibleFrontIndex < std::min((int)possibleFrontNodes.size(), frontCapacity); ++possibleFrontIndex) {
+		newFront.push_back(possibleFrontNodes[possibleFrontDistances[possibleFrontIndex].second]);
+	}
+
+	return newFront;
+}
+
+std::string BeamSearch( const TBoard& startPos, const int frontCapacity ) 
+{
+	int stepCount = 0;
+	const int STEP_LIMIT = 1e2;
+
+	CNode startNode;
+	startNode.FirstInit(startPos);
+
+	std::vector<CNode> frontNodes;
+	frontNodes.push_back(startNode);
+
+	while( stepCount < STEP_LIMIT && frontNodes.size() != 0) {
+		++stepCount;
+
+		for (int index = 0; index < frontNodes.size(); ++index) {
+			if (GetManhattanDistance(frontNodes[index].Board) == 0) {
+				return frontNodes[index].Path;
+			}
+		}
+
+		std::vector<CNode> possibleFrontNodes;
+		for (int frontIndex = 0; frontIndex < frontNodes.size(); ++frontIndex) {
+			std::vector<CNode> children;
+			GetSuccessors(frontNodes[frontIndex], children);
+			for (int childIndex = 0; childIndex < children.size(); ++childIndex) {
+				possibleFrontNodes.push_back(children[childIndex]);
+			}
+		}
+
+		if (possibleFrontNodes.size() == 0) {
+			return NO_SOLUTIONS;
+		}
+		
+		frontNodes = getNewFrontFromPossibleFront(possibleFrontNodes, frontCapacity);
+	}
+
+	return NO_SOLUTIONS;
+}
+
+std::string BeamSearchFrontCap1( const TBoard& startPos ) {
+	return BeamSearch(startPos, 1);
+}
+
+std::string BeamSearchFrontCap128( const TBoard& startPos ) {
+	return BeamSearch(startPos, 128);
+}
+
+std::string BeamSearchFrontCap1024( const TBoard& startPos ) {
+	return BeamSearch(startPos, 1024);
+}
+
+std::string BeamSearchFrontCap262144( const TBoard& startPos ) {
+	return BeamSearch(startPos, 262144);
+}
+
+//----------------------Beam search algorithm END ---------------------------
+
 TBoard GenerateStartPos() 
 {
 	// generate new random start position
@@ -282,7 +361,6 @@ TBoard GenerateStartPos()
 	return res;
 }
 
-
 void InitAlgorithms()
 {
 	CAlgorithm alg1("IDA*", &IdaStar);
@@ -290,6 +368,14 @@ void InitAlgorithms()
 
 	CAlgorithm alg2("A*", &AStar);
 	Algorithms.push_back(alg2);
+
+	// Не находит ничего
+	//CAlgorithm beamSearch1024("Beam search front capacity: 1024", &BeamSearchFrontCap1024);
+	//Algorithms.push_back(beamSearch1024);
+
+	// Работает 70 сек на одном тесте
+	CAlgorithm beamSearch262144("Beam search front capacity: 262144", &BeamSearchFrontCap262144);
+	Algorithms.push_back(beamSearch262144);
 }
 
 void RunBenchmark() 
