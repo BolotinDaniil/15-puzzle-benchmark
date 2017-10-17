@@ -419,6 +419,138 @@ std::string BeamSearchFrontCap262144( const TBoard& startPos ) {
 
 //----------------------Beam search algorithm END ---------------------------
 
+//----------------------RBFS START-------------------------------------------
+std::map<TBoard, int> elevatedDistances;
+std::set<TBoard> currentPath;
+int min_distance;
+
+bool distancesComparer(std::pair<int, CNode> a, std::pair<int, CNode> b) {
+	return a.first < b.first;
+}
+
+int GetDistance(const TBoard& pos) {
+	auto it = elevatedDistances.find(pos);
+	if (it != elevatedDistances.end()) {
+		return it->second;
+	}
+	else {
+		return GetManhattanDistance(pos);
+	}
+}
+
+struct CReturnResult
+{
+	CNode solution;
+	bool isNull;
+	int bound;
+};
+
+void SetDistance(const TBoard& pos, int value) {
+	elevatedDistances.insert(std::make_pair(pos, value));
+}
+
+CReturnResult RBFS(CNode currentNode, int bound, CReturnResult result) {
+	CReturnResult resTemp;
+	if (GetManhattanDistance(currentNode.Board) == 0) {
+		resTemp.bound = bound;
+		resTemp.isNull = false;
+		resTemp.solution = currentNode;
+		return resTemp;
+	}
+
+	std::vector<CNode> successors;
+	GetSuccessors(currentNode, successors);
+
+	std::vector<CNode> filteredSuccessors;
+	for (auto it = successors.begin(); it != successors.end(); it++) {
+		if (currentPath.find(it->Board) == currentPath.end()) {
+			filteredSuccessors.push_back(*it);
+		}
+	}
+
+	if (filteredSuccessors.size() == 0) {
+		resTemp.isNull = true;
+		resTemp.bound = GetDistance(currentNode.Board);
+		return resTemp;
+	}
+	
+	TBoard previousBest;
+	for (;;) {
+		
+		int alternative = 0;
+
+		std::vector<std::pair<int, CNode>> distances;
+		for (int i = 0; i < filteredSuccessors.size(); i++) {
+			distances.push_back(std::make_pair(GetDistance(filteredSuccessors[i].Board), filteredSuccessors[i]));
+		}
+		std::sort(distances.begin(), distances.end(), distancesComparer);
+
+		std::pair<int, CNode> best = distances[0];
+		
+		int bestDistance = best.first;
+		if (previousBest != best.second.Board) {
+			previousBest = best.second.Board;
+		}
+		else {
+			resTemp.isNull = true;
+			resTemp.bound = bestDistance;
+			return resTemp;
+		}
+		if (bestDistance < min_distance) {
+			min_distance = bestDistance;
+			//std::cout << min_distance << std::endl;
+		}
+		if (bestDistance > bound) {
+			resTemp.isNull = true;
+			resTemp.bound = bestDistance;
+			return resTemp;
+		}
+
+		if (distances.size() > 1) {
+			alternative = distances[1].first;
+		}
+		else {
+			alternative = INT_MAX;
+		}
+
+		bound = bound < alternative ? bound : alternative;
+
+		currentPath.insert(best.second.Board);
+		resTemp = RBFS(best.second, bound, result);
+		currentPath.erase(best.second.Board);
+
+		SetDistance(best.second.Board, resTemp.bound);
+		bound = resTemp.bound;
+
+		if (!resTemp.isNull) {
+			return resTemp;
+		}
+	}
+}
+
+std::string RecursiveBestFirstSearch(const TBoard& startPos) {
+	CNode startNode;
+	startNode.FirstInit(startPos);
+	elevatedDistances.clear();
+	currentPath.clear();
+	CReturnResult result;
+	result.isNull = false;
+	result.solution = startNode;
+	result.bound = 0;
+	currentPath.insert(startNode.Board);
+	min_distance = INT_MAX;
+	CReturnResult resTemp = RBFS(startNode, INT_MAX, result);
+	
+	if (resTemp.isNull) {
+		return NO_SOLUTIONS;
+	}
+	else {
+		return resTemp.solution.Path;
+	}
+}
+
+//----------------------------------RBFS END---------------------------------
+
 TBoard GenerateStartPos() 
 {
 	// generate new random start position
@@ -465,6 +597,10 @@ void InitAlgorithms()
 
 	CAlgorithm aStarMemLimit("A* with memory limit", AStarMemLimit);
 	Algorithms.push_back(aStarMemLimit);
+	
+	// Работает 16мс на одном прогоне, правда результат отстает по длине на 806.
+	CAlgorithm rbfs("RBFS", &RecursiveBestFirstSearch);
+	Algorithms.push_back(rbfs);
 }
 
 void RunBenchmark() 
