@@ -193,7 +193,7 @@ std::string idaRec( CNode curNode, int curDepth, int maxDepth )
 
 std::string IdaStar( const TBoard& startPos ) 
 {
-	const int MAX_DEPTH = 36;
+	const int MAX_DEPTH = 40;
 	std::string res;
 	CNode startNode;
 	startNode.FirstInit(startPos);
@@ -250,12 +250,98 @@ std::string AStar( const TBoard& startPos )
 			}
 		}
 		// freeze protection
-		if( maxFrontier > 1e5 ) {
+		if( maxFrontier > 1e6 ) {
 			break;
 		}
 	}
 	return NO_SOLUTIONS;
 }
+
+//----------------------A* with memory limit algorithm---------------------------
+
+CNode popNode( const int MAX_DEPTH, std::array <std::multimap<int, CNode>, 100> &front )
+{
+	int minCost = INT_MAX, bestLen = -1;
+	for( int i = 0; i < MAX_DEPTH; i++ ) {
+		if( front[i].size() > 0 && front[i].begin()->first < minCost ) {
+			minCost = front[i].begin()->first;
+			bestLen = i;
+		}
+	}
+	CNode res = front[bestLen].begin()->second;
+	front[bestLen].erase(front[bestLen].begin());
+	return res;
+}
+
+void removeNode( const int MAX_DEPTH, std::array <std::multimap<int, CNode>, 100> &front )
+{
+	int i = 0;
+	while( front[i++].size() == 0 ) {}
+	i--;
+	front[i].erase(--front[i].end());
+	return ;
+}
+
+std::string AStarMemLimit( const TBoard& startPos )
+{
+	int dist;
+	int numVisited = 0;
+	int maxFrontier = 0;
+	CNode startNode, curNode;
+	startNode.FirstInit(startPos);
+
+	double magicConstant = 1; // warning: value more than 1 will make unacceptable estimation function, set it only when debug
+	const int MAX_FRONT_SIZE = 1e5;
+	const int MAX_DEPTH = 100;
+	std::array <std::multimap<int, CNode>, MAX_DEPTH> front;
+	for (int i = 0; i < MAX_DEPTH; i++) {
+		front[i].clear();
+		//std::cout << front[i].size() << std::endl;
+	}
+
+	int frontLen = 1;
+	dist = GetManhattanDistance(startPos);
+	front[startNode.Path.length()].insert(std::pair <int, CNode>(int(magicConstant * dist), startNode));
+
+	std::set<TBoard> visited;
+	while( frontLen > 0 && numVisited < 1e7 ) {
+		curNode = popNode(MAX_DEPTH, front);
+		frontLen--;
+		numVisited++;
+
+		visited.insert(curNode.Board);
+		while (frontLen > MAX_FRONT_SIZE) {
+			removeNode(MAX_DEPTH, front);
+			frontLen--;
+		}
+
+		if (curNode.Board == SOLUTION) {
+			//std::cout << "Visited: " << numVisited << std::endl;
+			//std::cout << "Max Frontier: " << maxFrontier << std::endl;
+			return curNode.Path;
+		}
+
+		std::vector<CNode> nextNodes;
+		nextNodes.clear();
+		GetSuccessors(curNode, nextNodes);
+		for (int i = 0, maxi = nextNodes.size(); i < maxi; i++) {
+			if (visited.find(nextNodes[i].Board) != visited.end() || nextNodes[i].Path.length() >= MAX_DEPTH) {
+				continue;
+			}
+			dist = GetManhattanDistance(nextNodes[i].Board);
+			int cost = int(dist * magicConstant) + int(nextNodes[i].Path.length());
+
+			front[nextNodes[i].Path.length()].insert(std::pair <int, CNode>(cost, nextNodes[i]));
+			frontLen++;
+
+			if( frontLen > maxFrontier ) {
+				maxFrontier = frontLen;
+			}
+		}
+	}
+	return NO_SOLUTIONS;
+}
+
 
 //----------------------Beam search algorithm START ---------------------------
 
@@ -376,6 +462,9 @@ void InitAlgorithms()
 	// Работает 70 сек на одном тесте
 	CAlgorithm beamSearch262144("Beam search front capacity: 262144", &BeamSearchFrontCap262144);
 	Algorithms.push_back(beamSearch262144);
+
+	CAlgorithm aStarMemLimit("A* with memory limit", AStarMemLimit);
+	Algorithms.push_back(aStarMemLimit);
 }
 
 void RunBenchmark() 
@@ -422,6 +511,7 @@ void RunBenchmark()
 
 void OutAlgorithmsStatistics()
 {
+	std::cout << NUMBER_OF_TESTS << " tests\n";
 	for( auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++ ) {
 		std::cout << "---------------------------------------------" << std::endl;
 		std::cout << "Name: " << pAlg->Name << std::endl;
