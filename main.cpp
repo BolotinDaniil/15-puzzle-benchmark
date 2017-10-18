@@ -18,7 +18,7 @@
 
 //using namespace std;
 
-#define NUMBER_OF_TESTS 10
+#define NUMBER_OF_TESTS 5
 
 //store playing board in a linear array;
 typedef std::array<short int, 16> TBoard;
@@ -551,6 +551,63 @@ std::string RecursiveBestFirstSearch(const TBoard& startPos) {
 
 //----------------------------------RBFS END---------------------------------
 
+//------------------------BRANCH AND BOUNDARY--------------------------------
+
+std::string BranchAndBoundaryBFS( const TBoard& startPos, int problemUpperBound, int queueStopSize )
+{
+	int dist;
+	int numVisited = 0;
+	int maxFrontier = 0;
+	CNode startNode;
+	startNode.FirstInit( startPos );
+
+	std::multimap<int, CNode> pqueue;
+	dist = GetManhattanDistance( startPos );
+	pqueue.insert( std::pair <int, CNode>( dist, startNode ) );
+	std::set<TBoard> visited;
+	std::vector<CNode> nextNodes;
+
+	while( !pqueue.empty() ) {
+		CNode curNode = pqueue.begin()->second;
+		pqueue.erase( pqueue.begin() );
+		numVisited += 1;
+		visited.insert( curNode.Board );
+
+		if( curNode.Board == SOLUTION ) {
+			return curNode.Path;
+		}
+
+		nextNodes.clear();
+		GetSuccessors( curNode, nextNodes );
+		for( int i = 0; i < nextNodes.size(); i++ ) {
+			if( visited.find( nextNodes[i].Board ) != visited.end() ) {
+				continue;
+			}
+			dist = GetManhattanDistance( nextNodes[i].Board );
+			int solutionLowerBound = dist + int( nextNodes[i].Path.length() );
+			
+			if( solutionLowerBound > problemUpperBound ) {
+				continue;
+			}
+
+			pqueue.insert( std::pair<int, CNode>( solutionLowerBound, nextNodes[i] ) );
+		}
+
+		if( pqueue.size() > queueStopSize ) {
+			break;
+		}
+	}
+	return NO_SOLUTIONS;
+}
+
+std::string BranchAndBoundaryFromRBFSHeuristic( const TBoard& startPos )
+{
+	int problemUpperBound = RecursiveBestFirstSearch( startPos ).length();
+	return BranchAndBoundaryBFS( startPos, problemUpperBound, 1000000000 );
+}
+
+//------------------------BRANCH AND BOUNDARY--------------------------------
+
 TBoard GenerateStartPos() 
 {
 	// generate new random start position
@@ -581,19 +638,19 @@ TBoard GenerateStartPos()
 
 void InitAlgorithms()
 {
-	CAlgorithm alg1("IDA*", &IdaStar);
-	Algorithms.push_back(alg1);
+	//CAlgorithm alg1("IDA*", &IdaStar);
+	//Algorithms.push_back(alg1);
 
-	CAlgorithm alg2("A*", &AStar);
-	Algorithms.push_back(alg2);
+	//CAlgorithm alg2("A*", &AStar);
+	//Algorithms.push_back(alg2);
 
 	// Не находит ничего
 	//CAlgorithm beamSearch1024("Beam search front capacity: 1024", &BeamSearchFrontCap1024);
 	//Algorithms.push_back(beamSearch1024);
 
 	// Работает 70 сек на одном тесте
-	CAlgorithm beamSearch262144("Beam search front capacity: 262144", &BeamSearchFrontCap262144);
-	Algorithms.push_back(beamSearch262144);
+	//CAlgorithm beamSearch262144("Beam search front capacity: 262144", &BeamSearchFrontCap262144);
+	//Algorithms.push_back(beamSearch262144);
 
 	CAlgorithm aStarMemLimit("A* with memory limit", AStarMemLimit);
 	Algorithms.push_back(aStarMemLimit);
@@ -601,11 +658,18 @@ void InitAlgorithms()
 	// Работает 16мс на одном прогоне, правда результат отстает по длине на 806.
 	CAlgorithm rbfs("RBFS", &RecursiveBestFirstSearch);
 	Algorithms.push_back(rbfs);
+
+	// С этой эвристикой 20с на тест, гарантирует оптимальность решения
+	CAlgorithm branchAndBoundary( "B&B", &BranchAndBoundaryFromRBFSHeuristic );
+	Algorithms.push_back( branchAndBoundary );
 }
 
 void RunBenchmark() 
 {
 	for( int testNumber = 0; testNumber < NUMBER_OF_TESTS; testNumber++ ) {
+
+		std::cout << "Start test " << testNumber << std::endl;
+
 		TBoard startPos;
 		std::string path;
 		startPos = GenerateStartPos();
@@ -613,6 +677,9 @@ void RunBenchmark()
 		std::vector<std::string> paths;
 		paths.clear();
 		for( auto pAlg = Algorithms.begin(); pAlg != Algorithms.end(); pAlg++ ) {
+
+			std::cout << "Testing " << pAlg->Name << std::endl;
+
 			std::chrono::high_resolution_clock::time_point startTime, finTime;
 			startTime = std::chrono::high_resolution_clock::now();
 			path = pAlg->SolverAlgorithm(startPos);
