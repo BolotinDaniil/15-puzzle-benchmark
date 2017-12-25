@@ -14,11 +14,13 @@
 #include <functional>
 #include <algorithm>
 #include <utility>
+#include <random>
+#include "ofxMSAmcts.h"
 
 
 //using namespace std;
 
-#define NUMBER_OF_TESTS 5
+#define NUMBER_OF_TESTS 1
 
 //store playing board in a linear array;
 typedef std::array<short int, 16> TBoard;
@@ -48,13 +50,49 @@ struct CAlgorithm {
 // Add here you algorithm in InitAlgorithms function
 std::vector<CAlgorithm> Algorithms;
 
+struct Action {
+	Action() :
+		move( 0 )
+	{
+	}
+
+	Action( char _move ) :
+		move( _move )
+	{
+	}
+
+	char move;
+};
+
 struct CNode{
 	TBoard Board;
 	short int GapPos;
 	std::string Path;
 	void FindGapPos();
-	void FirstInit(const TBoard &startPos);
+	void FirstInit( const TBoard &startPos );
+
+	static std::mt19937 gen;
+
+	// MCTS Interface
+	bool is_terminal() const
+	{
+		return Board == SOLUTION;
+	}
+
+	int agent_id() const
+	{
+		return 0;
+	}
+
+	void get_actions( std::vector<Action>& actions ) const;
+	void apply_action( const Action& action );
+
+	bool get_random_action( Action& action ) const;
+	const std::vector<float> evaluate() const;
+	std::string to_string() const;
 };
+
+std::mt19937 CNode::gen;
 
 void CNode::FindGapPos()
 {
@@ -610,6 +648,7 @@ std::string BranchAndBoundaryFromRBFSHeuristic( const TBoard& startPos )
 
 TBoard GenerateStartPos() 
 {
+	
 	// generate new random start position
 	// this function have to generate only correct start positions (use func IsSolveExist( const TBoard& startPos ) )
 	TBoard res;
@@ -630,10 +669,113 @@ TBoard GenerateStartPos()
 			ok = true;
 		}
 	}
-
-	//res = { 1, 2, 3, 4 , 5, 6, 7, 8, 9, 10, 15, 11, 13, 14, 0, 12 };
+	// res = { 1, 2, 3, 4 , 5, 6, 7, 8, 9, 10, 15, 11, 13, 14, 0, 12 };
 	//res = {00, 01, 04, 8, 05, 15, 02, 03, 9, 13, 07, 12, 11, 10, 06, 14};
 	return res;
+}
+
+// MCTS Algo
+
+void CNode::get_actions( std::vector<Action>& actions ) const
+{
+	int gp = GapPos;
+	if( gp > 3 ) { // can move up
+		actions.emplace_back( 'U' );
+	}
+	if( gp < 4 * 3 ) { // can move down
+		actions.emplace_back( 'D' );
+	}
+	if( gp % 4 < 3 ) { // can move right
+		actions.emplace_back( 'R' );
+	}
+	if( gp % 4 > 0 ) { //can move left
+		actions.emplace_back( 'L' );
+	}
+}
+
+void CNode::apply_action( const Action& action )
+{
+	switch( action.move ) {
+		case 'U':
+			std::swap( Board[GapPos], Board[GapPos - 4] );
+			GapPos = GapPos - 4;
+			Path += 'U';
+			break;
+		case 'D':
+			std::swap( Board[GapPos], Board[GapPos + 4] );
+			GapPos = GapPos + 4;
+			Path += 'D';
+			break;
+		case 'R':
+			std::swap( Board[GapPos], Board[GapPos + 1] );
+			GapPos = GapPos + 1;
+			Path += 'R';
+			break;
+		case 'L':
+			std::swap( Board[GapPos], Board[GapPos - 1] );
+			GapPos = GapPos - 1;
+			Path += 'L';
+			break;
+	}
+}
+
+
+bool CNode::get_random_action( Action& action ) const
+{
+	std::vector<Action> possibilities;
+	std::vector<float> estimations;
+	get_actions( possibilities );
+	for( int i = 0; i < possibilities.size(); i++ ) {
+		CNode copy = *this;
+		copy.apply_action( possibilities[i] );
+		estimations.push_back( 1.0f / ( GetManhattanDistance( copy.Board ) + 1 ) );
+	}
+	std::discrete_distribution<> d( estimations.begin(), estimations.end() );
+	action = possibilities[ d( gen ) ];
+	return true;
+}
+
+const std::vector<float> CNode::evaluate() const
+{
+	std::vector<float> rewards( 1 );
+
+	rewards[0] = 1.0f / ( Path.length() + GetManhattanDistance( Board ) + 1 );
+
+	return rewards;
+}
+
+std::string CNode::to_string() const
+{
+	return Path;
+}
+
+std::string MCTS( const TBoard& startPos )
+{
+	msa::mcts::UCT<CNode, Action> uct;
+	uct.max_iterations = 100;
+	uct.simulation_depth = 10;
+
+	CNode state;
+	state.FirstInit( startPos );
+	std::string result;
+	std::set<TBoard> visited;
+
+	visited.insert( startPos );
+
+	while( !state.is_terminal() ) {
+		Action action = uct.run( state );
+
+		CNode another = state;
+		another.apply_action( action );
+		if( visited.find( another.Board ) != visited.end() ) {
+			continue;
+		}
+
+		result += action.move;
+		state.apply_action( action );
+	}
+
+	return result;
 }
 
 void InitAlgorithms()
@@ -656,12 +798,16 @@ void InitAlgorithms()
 	Algorithms.push_back(aStarMemLimit);
 	
 	// Работает 16мс на одном прогоне, правда результат отстает по длине на 806.
-	CAlgorithm rbfs("RBFS", &RecursiveBestFirstSearch);
-	Algorithms.push_back(rbfs);
+	// CAlgorithm rbfs("RBFS", &RecursiveBestFirstSearch);
+	// Algorithms.push_back(rbfs);
 
-	// С этой эвристикой 20с на тест, гарантирует оптимальность решения
+	//С этой эвристикой 20с на тест, гарантирует оптимальность решения
 	CAlgorithm branchAndBoundary( "B&B", &BranchAndBoundaryFromRBFSHeuristic );
 	Algorithms.push_back( branchAndBoundary );
+
+	// MCTS похоже практически никогда не работает
+	CAlgorithm mcts( "MCTS", &MCTS );
+	Algorithms.push_back( mcts );
 }
 
 void RunBenchmark() 
